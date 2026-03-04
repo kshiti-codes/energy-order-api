@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
-const API = 'http://localhost:3000/orders';
+const API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/orders`
+  : 'http://localhost:3000/orders';
 
 type Product = 'SOLAR_PANEL' | 'HEAT_PUMP' | 'EV_CHARGER';
 type Status = 'PENDING' | 'CONFIRMED' | 'COMPLETED';

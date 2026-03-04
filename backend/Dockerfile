@@ -3,13 +3,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install NestJS CLI globally so it's always available
+RUN npm install -g @nestjs/cli
+
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN nest build
 
-# Stage 2 — Run
+# Stage 2 — Run (lean production image)
 FROM node:20-alpine
 
 WORKDIR /app

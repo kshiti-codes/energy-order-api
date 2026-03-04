@@ -6,8 +6,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PATCH'],
+    origin: [
+      /^http:\/\/localhost:\d+$/,                        // all localhost ports (dev)
+      'https://energy-order.web.app',                    // Firebase Hosting (prod)
+      'https://energy-order--default-rtdb.firebaseio.com' // optional, if you ever add Firebase DB
+    ],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   });
 
   app.useGlobalPipes(
