@@ -1,5 +1,5 @@
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { Product } from './order.enums';
+import { Product } from '../order.enums';
 
 export class CreateOrderDto {
   @IsString()

@@ -114,8 +114,8 @@ export default function App() {
 const styles: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', backgroundColor: '#0f172a', color: '#f1f5f9', fontFamily: "'Segoe UI', sans-serif" },
   header: { backgroundColor: '#1e293b', padding: '24px 40px', borderBottom: '1px solid #334155' },
-  logo: { margin: 0, fontSize: '28px', fontWeight: 700, color: '#facc15' },
-  tagline: { margin: '4px 0 0', color: '#94a3b8', fontSize: '14px' },
+  logo: { margin: 0, fontSize: '28px', fontWeight: 700, color: '#facc15', textAlign: 'center' },
+  tagline: { margin: '4px 0 0', color: '#94a3b8', fontSize: '14px', textAlign: 'center' },
   main: { maxWidth: '900px', margin: '0 auto', padding: '40px 20px' },
   card: { backgroundColor: '#1e293b', borderRadius: '12px', padding: '28px', marginBottom: '40px', border: '1px solid #334155' },
   sectionTitle: { marginTop: 0, fontSize: '20px', fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' },
