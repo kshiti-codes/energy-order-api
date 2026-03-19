@@ -25,7 +25,7 @@ const mockOrders = [
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn((url: string, options?: RequestInit) => {
+    vi.fn((options?: RequestInit) => {
       if (!options || options.method === 'GET' || options.method === undefined) {
         return Promise.resolve({
           json: () => Promise.resolve(mockOrders),
