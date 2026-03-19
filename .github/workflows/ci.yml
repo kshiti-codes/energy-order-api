@@ -1,10 +1,13 @@
-name: CI
+name: CI/CD
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+env:
+  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cloud-run-source-deploy/backend
 
 jobs:
   backend:
@@ -20,12 +23,17 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npm run test
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint --if-present
+      - name: Run unit tests
+        run: npm run test
+      - name: Build
+        run: npm run build
 
   frontend:
-    name: Frontend (React)
+    name: Frontend (React + Vite)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,5 +45,42 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run build
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm run test -- --run
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.IMAGE }}:${{ github.sha }} \
+                       -t ${{ env.IMAGE }}:latest \
+                       ./backend
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy energy-order-api \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
+            --region ${{ secrets.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --quiet
