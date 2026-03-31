@@ -3,16 +3,37 @@ import { useEffect, useState } from 'react';
 const API = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/orders`
   : 'http://localhost:3000/orders';
+const USERS_API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/users`
+  : 'http://localhost:3000/users';
+const PRODUCTS_API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/products`
+  : 'http://localhost:3000/products';
 
 type Product = 'SOLAR_PANEL' | 'HEAT_PUMP' | 'EV_CHARGER';
-type Status = 'PENDING' | 'CONFIRMED' | 'COMPLETED';
+type Status = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED';
+type RouteStatus = 'UNASSIGNED' | 'ASSIGNED' | 'IN_TRANSIT' | 'ARRIVED' | 'COMPLETED';
 
 interface Order {
   id: string;
+  customerId?: string;
   customerName: string;
   product: Product;
   status: Status;
+  routeStatus: RouteStatus;
+  deliveryAddress?: string;
   createdAt: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface ProductItem {
+  id: string;
+  name: string;
 }
 
 const PRODUCT_LABELS: Record<Product, string> = {
@@ -29,8 +50,11 @@ const STATUS_COLORS: Record<Status, string> = {
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [product, setProduct] = useState<Product>('SOLAR_PANEL');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,24 +64,63 @@ export default function App() {
     setOrders(data);
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  const fetchProducts = async () => {
+    const res = await fetch(PRODUCTS_API);
+    const data = await res.json();
+    setAvailableProducts(data);
+    if (data.length) {
+      const match = data.find((p: ProductItem) => p.name.toUpperCase().includes('SOLAR'));
+      if (match) setProduct('SOLAR_PANEL');
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+  }, []);
 
   const handleSubmit = async () => {
     if (!customerName.trim()) { setError('Customer name is required.'); return; }
+    if (!customerEmail.trim()) { setError('Customer email is required.'); return; }
     setError('');
     setLoading(true);
-    await fetch(API, {
+
+    const response = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerName, product }),
+      body: JSON.stringify({
+        customerName,
+        customerEmail,
+        product,
+        deliveryAddress,
+      }),
     });
+
+    if (!response.ok) {
+      const err = await response.json();
+      setError(err.message || 'Failed to place order');
+      setLoading(false);
+      return;
+    }
+
     setCustomerName('');
+    setCustomerEmail('');
+    setDeliveryAddress('');
     await fetchOrders();
     setLoading(false);
   };
 
   const handleAdvance = async (id: string) => {
     await fetch(`${API}/${id}/status`, { method: 'PATCH' });
+    await fetchOrders();
+  };
+
+  const assignRoute = async (id: string) => {
+    await fetch(`${API}/${id}/assign-route`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ routeId: `route-${Math.random().toString(36).slice(2, 8)}` }),
+    });
     await fetchOrders();
   };
 
@@ -73,12 +136,20 @@ export default function App() {
           <label style={styles.label}>Customer Name</label>
           <input style={styles.input} type="text" placeholder="e.g. Anna Müller"
             value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+          <label style={styles.label}>Customer Email</label>
+          <input style={styles.input} type="email" placeholder="e.g. anna@example.com"
+            value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
+
           <label style={styles.label}>Product</label>
           <select style={styles.input} value={product} onChange={(e) => setProduct(e.target.value as Product)}>
             {(Object.keys(PRODUCT_LABELS) as Product[]).map((p) => (
               <option key={p} value={p}>{PRODUCT_LABELS[p]}</option>
             ))}
           </select>
+
+          <label style={styles.label}>Delivery Address</label>
+          <input style={styles.input} type="text" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="e.g. 123 Main St" />
+
           {error && <p style={styles.error}>{error}</p>}
           <button style={styles.button} onClick={handleSubmit} disabled={loading}>
             {loading ? 'Placing...' : 'Place Order'}
@@ -98,10 +169,18 @@ export default function App() {
                   </span>
                 </div>
                 <p style={styles.productLabel}>{PRODUCT_LABELS[order.product]}</p>
+                <p style={styles.subLabel}>Route: {order.routeStatus}</p>
+                {order.deliveryAddress && <p style={styles.subLabel}>Delivery: {order.deliveryAddress}</p>}
                 <p style={styles.date}>{new Date(order.createdAt).toLocaleString()}</p>
-                {order.status !== 'COMPLETED' && (
+                {order.routeStatus === 'UNASSIGNED' && (
+                  <button style={styles.assignBtn} onClick={() => assignRoute(order.id)}>
+                    Assign Route
+                  </button>
+                )}
+
+                {order.status !== 'DELIVERED' && order.status !== 'CANCELED' && (
                   <button style={styles.advanceBtn} onClick={() => handleAdvance(order.id)}>
-                    Advance → {order.status === 'PENDING' ? 'CONFIRMED' : 'COMPLETED'}
+                    Advance → {order.status === 'PENDING' ? 'CONFIRMED' : order.status === 'CONFIRMED' ? 'PROCESSING' : order.status === 'PROCESSING' ? 'SHIPPED' : 'DELIVERED'}
                   </button>
                 )}
               </div>
@@ -134,6 +213,8 @@ const styles: Record<string, React.CSSProperties> = {
   customerName: { fontWeight: 600, fontSize: '16px' },
   statusBadge: { fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', color: '#fff', letterSpacing: '0.05em' },
   productLabel: { margin: '4px 0', color: '#94a3b8', fontSize: '14px' },
+  subLabel: { margin: '2px 0', color: '#cbd5e1', fontSize: '12px' },
   date: { fontSize: '12px', color: '#475569', margin: '4px 0 12px' },
   advanceBtn: { width: '100%', padding: '8px', backgroundColor: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', marginTop: '4px' },
+  assignBtn: { width: '100%', padding: '8px', backgroundColor: '#2563eb', border: 'none', borderRadius: '8px', color: '#fff', cursor: 'pointer', fontSize: '13px', marginTop: '4px' },
 };
