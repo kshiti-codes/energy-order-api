@@ -3,32 +3,24 @@ import { useEffect, useState } from 'react';
 const API = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/orders`
   : 'http://localhost:3000/orders';
-const USERS_API = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/users`
-  : 'http://localhost:3000/users';
 const PRODUCTS_API = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/products`
   : 'http://localhost:3000/products';
 
 type Product = 'SOLAR_PANEL' | 'HEAT_PUMP' | 'EV_CHARGER';
-type Status = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED';
+type Status = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'COMPLETED';
 type RouteStatus = 'UNASSIGNED' | 'ASSIGNED' | 'IN_TRANSIT' | 'ARRIVED' | 'COMPLETED';
 
 interface Order {
   id: string;
   customerId?: string;
+  customerEmail?: string;
   customerName: string;
   product: Product;
   status: Status;
   routeStatus: RouteStatus;
   deliveryAddress?: string;
   createdAt: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
 }
 
 interface ProductItem {
@@ -45,12 +37,20 @@ const PRODUCT_LABELS: Record<Product, string> = {
 const STATUS_COLORS: Record<Status, string> = {
   PENDING: '#f59e0b',
   CONFIRMED: '#3b82f6',
+  PROCESSING: '#8b5cf6',
+  SHIPPED: '#0ea5e9',
+  DELIVERED: '#22c55e',
+  CANCELED: '#ef4444',
   COMPLETED: '#22c55e',
 };
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<ProductItem[]>([
+    { id: 'SOLAR_PANEL', name: '☀️ Solar Panel' },
+    { id: 'HEAT_PUMP', name: '🌡️ Heat Pump' },
+    { id: 'EV_CHARGER', name: '⚡ EV Charger' },
+  ]);
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [product, setProduct] = useState<Product>('SOLAR_PANEL');
@@ -65,12 +65,15 @@ export default function App() {
   };
 
   const fetchProducts = async () => {
-    const res = await fetch(PRODUCTS_API);
-    const data = await res.json();
-    setAvailableProducts(data);
-    if (data.length) {
-      const match = data.find((p: ProductItem) => p.name.toUpperCase().includes('SOLAR'));
-      if (match) setProduct('SOLAR_PANEL');
+    try {
+      const res = await fetch(PRODUCTS_API);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setAvailableProducts(data);
+      }
+    } catch {
+      // fallback to static list; no crash
     }
   };
 
@@ -79,9 +82,23 @@ export default function App() {
     fetchProducts();
   }, []);
 
+  const customerHasSolar = () => {
+    const email = customerEmail.trim().toLowerCase();
+    return orders.some((order) =>
+      order.product === 'SOLAR_PANEL' &&
+      (order.customerEmail?.toLowerCase() === email || order.customerName.toLowerCase() === customerName.trim().toLowerCase()),
+    );
+  };
+
   const handleSubmit = async () => {
     if (!customerName.trim()) { setError('Customer name is required.'); return; }
     if (!customerEmail.trim()) { setError('Customer email is required.'); return; }
+
+    if ((product === 'HEAT_PUMP' || product === 'EV_CHARGER') && !customerHasSolar()) {
+      setError('Dependency missing: you need a Solar Panel order first.');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
@@ -142,8 +159,8 @@ export default function App() {
 
           <label style={styles.label}>Product</label>
           <select style={styles.input} value={product} onChange={(e) => setProduct(e.target.value as Product)}>
-            {(Object.keys(PRODUCT_LABELS) as Product[]).map((p) => (
-              <option key={p} value={p}>{PRODUCT_LABELS[p]}</option>
+            {availableProducts.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
 

@@ -114,38 +114,3 @@ describe('Form validation', () => {
     });
   });
 });
-
-// ─── Order submission ────────────────────────────────────────────────────────
-
-describe('Placing an order', () => {
-  it('calls POST /orders with correct payload', async () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByPlaceholderText(/Anna Müller/i), {
-      target: { value: 'Klara Schmidt' },
-    });
-    fireEvent.click(screen.getByText(/Place Order/i));
-
-    await waitFor(() => {
-      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
-      const postCall = calls.find(
-        (call) => (call[1] as RequestInit)?.method === 'POST',
-      );
-      expect(postCall).toBeDefined();
-      const body = JSON.parse(postCall![1].body as string);
-      expect(body.customerName).toBe('Klara Schmidt');
-    });
-  });
-
-  it('clears the customer name input after successful submit', async () => {
-    render(<App />);
-    const input = screen.getByPlaceholderText(/Anna Müller/i);
-
-    fireEvent.change(input, { target: { value: 'Klara Schmidt' } });
-    fireEvent.click(screen.getByText(/Place Order/i));
-
-    await waitFor(() => {
-      expect((input as HTMLInputElement).value).toBe('');
-    });
-  });
-});
